@@ -1,10 +1,11 @@
-#define N 800
+#define N 160000
 #include <time.h>
 #include <math.h>
 #include <stdio.h>
 /* #include <immintrin.h> */
 #include <time.h>
 #include <sys/time.h> // for timing
+#include <pthread.h>
 #include "avx_mathfun.h"
 
 double now(){
@@ -36,15 +37,27 @@ float gm(float*U, float*W, float a, int k, int n){
 /* Sum : https://www.moreno.marzolla.name/teaching/high-performance-computing/2018-2019/L08-SIMD.pdf */
 
 float vect_gm(float*U, float*W, float a, int k, int n){
-  __m256 mm_U, mm_W, mm_a, mm_k, mm_r, mm_sum_w;
+  __m256 mm_U, mm_W, mm_a, mm_step_r, mm_r, mm_sum_w;
   mm_a = _mm256_set1_ps(a);
-  mm_k = _mm256_set1_ps((float) k);
   mm_r = _mm256_setzero_ps();
   mm_sum_w = _mm256_setzero_ps();
-  for ( int i = 0; i < n/8; i += 8 ){
-    mm_U = _mm256_load_ps( &U[i] );
-    mm_W = _mm256_load_ps( &W[i] );
-    mm_r = _mm256_add_ps(mm_r, exp256_ps(_mm256_mul_ps(mm_k, log256_ps(_mm256_fmsub_ps(mm_U, mm_W, mm_a)))));
+
+  /* printf("%d\n", n/8); */
+  for ( int i = 0; i < n/8; i++ ){
+    /* printf("%d\n", i); */
+    /* printf("%f\n", U[i]); */
+    mm_U = _mm256_load_ps( &U[8*i] );
+    mm_W = _mm256_load_ps( &W[8*i] );
+
+    mm_U = _mm256_fmsub_ps(mm_U, mm_W, mm_a);
+    mm_step_r = mm_U;
+    /* Replace by fast exponentation? */
+    for (int j=1; j<k; j++){
+      mm_step_r = _mm256_mul_ps(mm_step_r, mm_U);
+    }
+    mm_r = _mm256_add_ps(mm_r, mm_step_r);
+
+    /* W sum */
     mm_sum_w = _mm256_add_ps(mm_sum_w, mm_W);
   }
 
@@ -53,15 +66,19 @@ float vect_gm(float*U, float*W, float a, int k, int n){
   float r = 0.;
   float w = 0.;
   for ( int i = 0; i < 8; i++){
+    /* printf("%f - %f\n", sum_r[i], sum_w[i]); */
     r += sum_r[i];
     w += sum_w[i];
   }
   return r/w;
 }
 
-void parallel_gm(float *U, float *W, float a, int k, int n, int mode, int nb_threads){
- /* https://www.geeksforgeeks.org/sum-array-using-pthreads/   */
-}
+/* void parallel_gm(float *U, float *W, float a, int k, int n, int mode, int nb_threads){ */
+/*  /\* https://www.geeksforgeeks.org/sum-array-using-pthreads/   *\/ */
+
+/*   pthread_t threads[nb_threads]; */
+
+/* } */
 
 
 void init(){
@@ -79,7 +96,7 @@ void init(){
 
 int main(){
   a = 0;
-  int k = 2;
+  int k = 4;
   init();
 
   double t;
