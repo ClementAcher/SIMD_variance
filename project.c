@@ -1,4 +1,4 @@
-#define N 160000
+#define N 9
 #include <time.h>
 #include <math.h>
 #include <stdio.h>
@@ -42,10 +42,7 @@ float vect_gm(float*U, float*W, float a, int k, int n){
   mm_r = _mm256_setzero_ps();
   mm_sum_w = _mm256_setzero_ps();
 
-  /* printf("%d\n", n/8); */
   for ( int i = 0; i < n/8; i++ ){
-    /* printf("%d\n", i); */
-    /* printf("%f\n", U[i]); */
     mm_U = _mm256_load_ps( &U[8*i] );
     mm_W = _mm256_load_ps( &W[8*i] );
 
@@ -65,8 +62,14 @@ float vect_gm(float*U, float*W, float a, int k, int n){
   float* sum_w = (float*)&mm_sum_w;
   float r = 0.;
   float w = 0.;
+
+  // Edge case where n is not a multiple of 8
+  for ( int i = 8*(n/8) ; i < n ; i++ ){
+    r += pow((W[i] * U[i] - a), k);
+    w += W[i];
+  }
+
   for ( int i = 0; i < 8; i++){
-    /* printf("%f - %f\n", sum_r[i], sum_w[i]); */
     r += sum_r[i];
     w += sum_w[i];
   }
