@@ -8,6 +8,16 @@
 #include <pthread.h>
 #include "avx_mathfun.h"
 
+
+struct thread_data
+{
+  unsigned int thread_id;
+  float *W;
+  float *U;
+  float a;
+  long end;
+}
+
 double now(){
   // Retourne l'heure actuelle en secondes
   struct timeval t; double f_t;
