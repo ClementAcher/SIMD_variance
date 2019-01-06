@@ -6,7 +6,7 @@
 #include <time.h>
 #include <sys/time.h> // for timing
 #include <pthread.h>
-#include "avx_mathfun.h"
+#include <immintrin.h>
 
 
 struct thread_data
@@ -16,7 +16,7 @@ struct thread_data
   float *U;
   float a;
   long end;
-}
+};
 
 double now(){
   // Retourne l'heure actuelle en secondes
