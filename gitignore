@@ -1,0 +1,6 @@
+# Ignore all
+*
+# Unignore all files with extensions
+!*.*
+
+# The above should ignore all files with no extensions
