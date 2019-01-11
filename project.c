@@ -1,13 +1,11 @@
-#define N 100000 
+#define N 10 
 #include <time.h>
 #include <math.h>
 #include <stdio.h>
-/* #include <immintrin.h> */
 #include <time.h>
 #include <sys/time.h> // for timing
 #include <pthread.h>
 #include <immintrin.h>
-
 
 
 double now(){
@@ -80,8 +78,8 @@ result_t sliced_vect_gm(float *U, float *W, float a, int k, int n, int start) {
 
   float* sum_r = (float*)&mm_r;
   float* sum_w = (float*)&mm_sum_w;
-  float r = 0.;
-  float w = 0.;
+  float r = 0;
+  float w = 0;
 
   // Edge case where n is not a multiple of 8
   for ( int i = 8*(n/8) ; i < n ; i++ ){
@@ -101,12 +99,11 @@ float vect_gm(float*U, float*W, float a, int k, int n){
     return result.r / result.sum_w;
 }
 
-float *p_w_sum;
-float *p_u_w_sum;
-
 typedef struct shared_data {
     float *W;
     float *U;
+    float *p_w_sum;
+    float *p_r_sum;
     float a;
     int k;
 } shared_data_t;
@@ -123,46 +120,87 @@ void *worker_func(void *data) {
     // convert back data
     thread_data_t *d = (thread_data_t*) data;
     shared_data_t *s_d = d->s_data;
+    int k = s_d->k;
+    int a = s_d->a;
     // perform calculations
     result_t result;
     if (d->mode == 0)
-        result = sliced_gm(s_d->U, s_d->W, s_d->a, s_d->k, d->slice_size, d->start);
+        result = sliced_gm(s_d->U, s_d->W, a, k, d->slice_size, d->start);
     else
-        result = sliced_vect_gm(s_d->U, s_d->W, s_d->a, s_d->k, d->slice_size, d->start);
-    p_w_sum[d->thread_id] = result.sum_w;
-    p_u_w_sum[d->thread_id] = result.r;
+        result = sliced_vect_gm(s_d->U, s_d->W, a, k, d->slice_size, d->start);
+    s_d->p_w_sum[d->thread_id] = result.sum_w;
+    s_d->p_r_sum[d->thread_id] = result.r;
+}
+
+shared_data_t *init_shared_data(float *W, float *U, float a, int k, int nb_threads) {
+    shared_data_t *d = malloc(sizeof(shared_data_t));
+    d->p_w_sum = malloc(nb_threads * sizeof(float));
+    d->p_r_sum = malloc(nb_threads * sizeof(float));
+    d->W = W;
+    d->U = U;
+    d->a = a;
+    d->k = k;
+    return d;
+}
+
+void *destroy_shared_data(shared_data_t *data) {
+    free(data->p_w_sum);
+    free(data->p_r_sum);
+    free(data);
+}
+
+thread_data_t **create_thread_data(int nb_threads) {
+    thread_data_t **data = malloc(nb_threads * sizeof(thread_data_t*));
+    for (int i = 0; i < nb_threads; i++) {
+        data[i] = malloc(sizeof(thread_data_t));
+    }
+    return data;
+}
+
+void populate_thread_data(thread_data_t **t_d, shared_data_t *s_d, int i, int mode, 
+    int slice_size, int nb_threads, int overflow) {
+    thread_data_t *d = t_d[i];
+    d->s_data = s_d;
+    d->thread_id = i;
+    d->start = i * slice_size;
+    d->mode = mode;
+    if (i == nb_threads - 1)
+        d->slice_size = slice_size + overflow;
+    else
+        d->slice_size = slice_size;
+}
+
+void destroy_thread_data(thread_data_t **data, int nb_threads) {
+    for (int i = 0; i < nb_threads; i++) {
+        free(data[i]);
+    }
+    free(data);
 }
 
 float parallel_gm(float *U, float *W, float a, int k, int n, int mode, int nb_threads) {
     int slice_size = n / nb_threads;
     int overflow = n % nb_threads;
     // allocate memory for partial sums
-    p_w_sum = malloc(nb_threads * sizeof(float));
-    p_u_w_sum = malloc(nb_threads * sizeof(float));
+    shared_data_t *s_data = init_shared_data(W, U, a, k, nb_threads);
     // spawn all workers
     pthread_t threads[nb_threads];
-    shared_data_t s_data = { W, U, a, k };
+    thread_data_t **thread_data = create_thread_data(nb_threads);
     for (int i = 0; i < nb_threads; i++) {
-        thread_data_t *data = malloc(sizeof(thread_data_t));
-        data->s_data = &s_data;
-        data->thread_id = i;
-        data->start = i * slice_size;
-        data->mode = mode;
-        if (i == nb_threads - 1)
-            slice_size += overflow;
-        data->slice_size = slice_size;
-        pthread_create(&threads[i], NULL, worker_func, (void*)data);
+        populate_thread_data(thread_data, s_data, i, mode, slice_size, nb_threads, overflow);
+        pthread_create(&threads[i], NULL, worker_func, (void*)thread_data[i]);
     }
     // join all
     for (int i = 0; i < nb_threads; i++)
         pthread_join(threads[i], NULL);
     // perform calculations
-    float w_sum, u_w_sum;
+    float w_sum = 0, r_sum = 0;
     for (int i = 0; i < nb_threads; i++) {
-        w_sum += p_w_sum[i];
-        u_w_sum += p_u_w_sum[i];
+        w_sum += s_data->p_w_sum[i];
+        r_sum += s_data->p_r_sum[i];
     }
-    return u_w_sum / w_sum;
+    destroy_shared_data(s_data);
+    destroy_thread_data(thread_data, nb_threads);
+    return r_sum / w_sum;
 }
 
 
@@ -180,7 +218,7 @@ int main(){
   init();
 
   double t;
-  float rs, rv, rp;
+  float rs = 0, rv = 0, rp = 0;
 
   t = now();
   rs = gm(U, W, a, k, N);
