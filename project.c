@@ -1,4 +1,4 @@
-#define N 10 
+#define N 1000000
 #include <time.h>
 #include <math.h>
 #include <stdio.h>
@@ -16,7 +16,6 @@ double now(){
   return f_t;
 }
 
-/* https://www.codeproject.com/Articles/874396/%2FArticles%2F874396%2FCrunching-Numbers-with-AVX-and-AVX */
 
 //Ici on dÃ©clare tous nos vecteurs en prenant soin de les aligner
 float U[N] __attribute__((aligned(32)));
@@ -52,7 +51,6 @@ float gm(float*U, float*W, float a, int k, int n){
 }
 
 
-/* Sum : https://www.moreno.marzolla.name/teaching/high-performance-computing/2018-2019/L08-SIMD.pdf */
 result_t sliced_vect_gm(float *U, float *W, float a, int k, int n, int start) {
     /* Computes separately the two sums, for n values, starting at start, using AVX */
   __m256 mm_U, mm_W, mm_a, mm_step_r, mm_r, mm_sum_w;
@@ -208,37 +206,40 @@ void init(){
   unsigned int i;
   for( i = 0; i < N; i++ ){
     U[i] = (float)rand () / RAND_MAX ;
-    W[i] = (float)rand () / RAND_MAX ;
+    W[i] = 1 ;
   }
 }
 
 int main(){
-  a = 0;
-  int k = 4;
   init();
 
   double t;
   float rs = 0, rv = 0, rp = 0;
 
-  t = now();
-  rs = gm(U, W, a, k, N);
-  t = now()-t;
-  printf("S = %10.9f Temps du code scalaire             : %f seconde(s)\n",rs,t);
+  /* To compute the variance, we use the Konig formula : Var(X) = E(X^2) - E(X)^2 */
+  printf("Calcul variance :\n\n");
 
   t = now();
-  rv = vect_gm(U, W, a, k, N);
+  rs = gm(U, W, 0, 2, N) - pow(gm(U, W, 0, 1, N), 2);
+  double t_base = now()-t;
+  printf("S = %10.9f Temps du code scalaire             : %f seconde(s)\n",rs,t_base);
+
+  t = now();
+  rv = vect_gm(U, W, 0, 2, N) - pow(vect_gm(U, W, 0, 1, N), 2);
   t = now()-t;
   printf("S = %10.9f Temps du code vectoriel 1          : %f seconde(s)\n",rv,t);
 
   t = now();
-  rp = parallel_gm(U, W, a, k, N, 0, 4);
+  rp = parallel_gm(U, W, 0, 2, N, 0, 8) - pow(parallel_gm(U, W, 0, 1, N, 0, 8), 2);
   t = now() - t;
   printf("S = %10.9f Temps du code multi-thread (mode 0): %f seconde(s)\n", rp, t);
 
   t = now();
-  rp = parallel_gm(U, W, a, k, N, 1, 4);
-  t = now() - t;
-  printf("S = %10.9f Temps du code multi-thread (mode 1): %f seconde(s)\n", rp, t);
+  rp = parallel_gm(U, W, 0, 2, N, 1, 8) - pow(parallel_gm(U, W, 0, 1, N, 1, 8), 2);
+  double t_multi_vec = now() - t;
+  printf("S = %10.9f Temps du code multi-thread (mode 1): %f seconde(s)\n", rp, t_multi_vec);
+
+  printf("\nRatio temps version sequentielle / multi-thread vectorielle : %f", t_base/t_multi_vec);
 
   return 0;
 
