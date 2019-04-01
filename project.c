@@ -1,4 +1,5 @@
 #define N 1000000
+#define N_THREAD 8
 #include <time.h>
 #include <math.h>
 #include <stdio.h>
@@ -231,12 +232,12 @@ int main(){
   printf("S = %10.9f Temps du code vectoriel 1          : %f seconde(s)\n",rv,t);
 
   t = now();
-  rp = parallel_gm(U, W, 0, 2, N, 0, 8) - pow(parallel_gm(U, W, 0, 1, N, 0, 8), 2);
+  rp = parallel_gm(U, W, 0, 2, N, 0, N_THREAD) - pow(parallel_gm(U, W, 0, 1, N, 0, N_THREAD), 2);
   t = now() - t;
   printf("S = %10.9f Temps du code multi-thread (mode 0): %f seconde(s)\n", rp, t);
 
   t = now();
-  rp = parallel_gm(U, W, 0, 2, N, 1, 8) - pow(parallel_gm(U, W, 0, 1, N, 1, 8), 2);
+  rp = parallel_gm(U, W, 0, 2, N, 1, N_THREAD) - pow(parallel_gm(U, W, 0, 1, N, 1, 8), N_THREAD);
   double t_multi_vec = now() - t;
   printf("S = %10.9f Temps du code multi-thread (mode 1): %f seconde(s)\n", rp, t_multi_vec);
 
