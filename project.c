@@ -9,7 +9,7 @@
 
 
 double now(){
-  // Retourne l'heure actuelle en secondes
+  // Return current time
   struct timeval t; double f_t;
   gettimeofday(&t, NULL);
   f_t = t.tv_usec; f_t = f_t/1000000.0; f_t +=t.tv_sec;
@@ -17,7 +17,7 @@ double now(){
 }
 
 
-//Ici on dÃ©clare tous nos vecteurs en prenant soin de les aligner
+// Vectors are aligned
 float U[N] __attribute__((aligned(32)));
 float W[N] __attribute__((aligned(32)));
 float a;
@@ -30,8 +30,9 @@ typedef struct result {
 
 result_t sliced_gm(float *U, float *W, float a, int k, int n, int start) {
     /* Computes separatly the two sums, for n values, starting at index start. 
-     * Returning a raw structure instead of a pointer is worth it as long as this function is not
-     * called too many times (in which case this is less expensive than malloc/free).
+     * Returning a raw structure instead of a pointer is worth it as long as
+     * this function is not called too many times (in which case this is less
+     * expensive than malloc/free).
      * */
     float r = 0;
     float sum_w = 0;
